@@ -1,4 +1,5 @@
 {
+<<<<<<< HEAD
   "name": "loan-link-server",
   "version": "1.0.0",
   "type": "module",
@@ -16,5 +17,13 @@
   },
   "devDependencies": {
     "nodemon": "^3.1.11"
+=======
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
+    "mongoose": "^9.0.1"
+>>>>>>> 276d2cd18317e04a90005c0b95f7157d1d2ab7a1
   }
 }
