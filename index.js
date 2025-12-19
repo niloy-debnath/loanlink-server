@@ -142,6 +142,95 @@ app.get("/loans", async (req, res) => {
   }
 });
 
+// ADD NEW LOAN (Manager)
+app.post("/loans", async (req, res) => {
+  try {
+    const loan = req.body;
+
+    // Basic validation
+    if (!loan.title || !loan.category || !loan.interestRate || !loan.maxLimit) {
+      return res.status(400).json({ message: "Missing required fields" });
+    }
+
+    const newLoan = {
+      title: loan.title,
+      shortDesc: loan.description || "",
+      category: loan.category,
+      interest: Number(loan.interestRate), // for existing UI
+      interestRate: Number(loan.interestRate),
+      maxLimit: Number(loan.maxLimit),
+      image: loan.image || "",
+      emiPlans: loan.emiPlans || [],
+      requiredDocuments: loan.requiredDocuments || [],
+      showOnHome: loan.showOnHome || false,
+      createdBy: loan.createdBy,
+      createdAt: new Date(),
+    };
+
+    const result = await mongoose.connection
+      .collection("loans")
+      .insertOne(newLoan);
+
+    res.status(201).json({
+      message: "Loan created successfully",
+      insertedId: result.insertedId,
+    });
+  } catch (err) {
+    console.error("Add Loan Error:", err);
+    res.status(500).json({ message: "Failed to add loan" });
+  }
+});
+
+// UpdateLoans
+app.put("/loans/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updateData = { ...req.body }; // payload from frontend
+
+    // Optionally: type conversion to prevent errors
+    if (updateData.interestRate)
+      updateData.interestRate = Number(updateData.interestRate);
+    if (updateData.maxLimit) updateData.maxLimit = Number(updateData.maxLimit);
+    if (updateData.showOnHome !== undefined)
+      updateData.showOnHome = Boolean(updateData.showOnHome);
+
+    console.log("Updating loan:", id, updateData); // DEBUG LOG
+
+    const result = await mongoose.connection
+      .collection("loans")
+      .updateOne(
+        { _id: new mongoose.Types.ObjectId(id) },
+        { $set: updateData }
+      );
+
+    if (result.matchedCount === 0) {
+      return res.status(404).json({ message: "Loan not found" });
+    }
+
+    res.json({ message: "Loan updated", result });
+  } catch (err) {
+    console.error("Update loan error:", err);
+    res.status(500).json({ message: "Failed to update loan", error: err });
+  }
+});
+
+// Loans visible on Home Page
+app.get("/loans/home", async (req, res) => {
+  try {
+    const loans = await mongoose.connection
+      .collection("loans")
+      .find({
+        showOnHome: { $in: [true, "true"] },
+      })
+      .toArray();
+
+    res.json(loans);
+  } catch (err) {
+    console.error("Error fetching home loans:", err);
+    res.status(500).json({ message: "Failed to fetch home loans" });
+  }
+});
+
 // GET single loan by id
 app.get("/loans/:id", async (req, res) => {
   try {
@@ -158,6 +247,39 @@ app.get("/loans/:id", async (req, res) => {
     res.json(loan);
   } catch (err) {
     res.status(500).json({ message: "Failed to fetch loan", error: err });
+  }
+});
+
+// GET loans by manager
+app.get("/loans/manager/:email", async (req, res) => {
+  try {
+    const { email } = req.params;
+
+    const loans = await mongoose.connection
+      .collection("loans")
+      .find({ createdBy: email })
+      .toArray();
+
+    res.json(loans);
+  } catch (error) {
+    console.error("Fetch manager loans error:", error);
+    res.status(500).json({ message: "Failed to fetch manager loans" });
+  }
+});
+
+// DELETE loan
+app.delete("/loans/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const result = await mongoose.connection
+      .collection("loans")
+      .deleteOne({ _id: new mongoose.Types.ObjectId(id) });
+
+    res.json({ message: "Loan deleted", result });
+  } catch (error) {
+    console.error("Delete loan error:", error);
+    res.status(500).json({ message: "Failed to delete loan" });
   }
 });
 

@@ -1,29 +1,21 @@
 {
-<<<<<<< HEAD
   "name": "loan-link-server",
   "version": "1.0.0",
-  "type": "module",
+  "description": "Backend server for Loan Link",
   "main": "index.js",
+  "type": "module",
   "scripts": {
-    "dev": "nodemon index.js",
-    "start": "node index.js"
+    "start": "node index.js",
+    "dev": "nodemon index.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
-    "mongoose": "^7.6.3",
-    "stripe": "^20.0.0"
+    "mongoose": "^8.5.0",
+    "stripe": "^16.5.0"
   },
   "devDependencies": {
-    "nodemon": "^3.1.11"
-=======
-  "dependencies": {
-    "cors": "^2.8.5",
-    "dotenv": "^17.2.3",
-    "express": "^5.2.1",
-    "jsonwebtoken": "^9.0.3",
-    "mongoose": "^9.0.1"
->>>>>>> 276d2cd18317e04a90005c0b95f7157d1d2ab7a1
+    "nodemon": "^3.1.7"
   }
 }
