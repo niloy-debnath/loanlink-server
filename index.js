@@ -20,21 +20,6 @@ app.use(
   })
 );
 app.use(express.json());
-app.use("/uploads", express.static("uploads"));
-
-/* ===================== MULTER CONFIG ===================== */
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const dir = "uploads/profile-images";
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    cb(null, dir);
-  },
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    cb(null, `${req.params.id}${ext}`);
-  },
-});
-const upload = multer({ storage });
 
 /* ===================== STRIPE ===================== */
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
@@ -56,7 +41,6 @@ app.post("/users", async (req, res) => {
     const existingUser = await users.findOne({ email: user.email });
 
     if (existingUser) {
-      // 🔒 DO NOT TOUCH ROLE IF NOT PROVIDED
       const updateDoc = {
         name: user.name,
         photoURL: user.photoURL,
@@ -94,6 +78,29 @@ app.get("/users/:email", async (req, res) => {
   res.json(user);
 });
 
+app.put("/users/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updateFields = req.body;
+
+    const result = await mongoose.connection
+      .collection("users")
+      .updateOne(
+        { _id: new mongoose.Types.ObjectId(id) },
+        { $set: updateFields }
+      );
+
+    if (!result.matchedCount) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    res.json({ message: "Profile updated successfully" });
+  } catch (err) {
+    console.error("PROFILE UPDATE ERROR:", err);
+    res.status(500).json({ message: "Failed to update profile" });
+  }
+});
+
 app.get("/users", async (req, res) => {
   const users = await mongoose.connection
     .collection("users")
@@ -117,26 +124,29 @@ app.put("/users/:id/role", async (req, res) => {
 });
 
 /* ---------- UPDATE PROFILE IMAGE ---------- */
-app.put("/users/:id/image", upload.single("image"), async (req, res) => {
+app.put("/users/:id/image", async (req, res) => {
   try {
-    if (!req.file)
-      return res.status(400).json({ message: "No image uploaded" });
+    const { photoURL } = req.body;
 
-    const imagePath = `/uploads/profile-images/${req.file.filename}`;
+    if (!photoURL) {
+      return res.status(400).json({ message: "photoURL required" });
+    }
 
     const result = await mongoose.connection
       .collection("users")
       .updateOne(
         { _id: new mongoose.Types.ObjectId(req.params.id) },
-        { $set: { image: imagePath } }
+        { $set: { photoURL } }
       );
 
-    if (!result.matchedCount)
+    if (!result.matchedCount) {
       return res.status(404).json({ message: "User not found" });
+    }
 
-    res.json({ message: "Profile image updated", image: imagePath });
+    res.json({ message: "Profile image updated", photoURL });
   } catch (err) {
-    res.status(500).json({ message: "Failed to update profile image" });
+    console.error("IMAGE UPDATE ERROR:", err);
+    res.status(500).json({ message: err.message });
   }
 });
 
@@ -256,6 +266,37 @@ app.get("/loan-applications/user/:email", async (req, res) => {
     .find({ userEmail: req.params.email })
     .toArray();
   res.json(apps);
+});
+
+/* ---------- CANCEL LOAN APPLICATION ---------- */
+app.put("/loan-applications/:id/cancel", async (req, res) => {
+  try {
+    const loan = await mongoose.connection
+      .collection("loanapplications")
+      .findOne({ _id: new mongoose.Types.ObjectId(req.params.id) });
+
+    if (!loan) {
+      return res.status(404).json({ message: "Loan application not found" });
+    }
+
+    if (loan.status !== "Pending") {
+      return res
+        .status(400)
+        .json({ message: "Only pending applications can be cancelled" });
+    }
+
+    await mongoose.connection
+      .collection("loanapplications")
+      .updateOne(
+        { _id: loan._id },
+        { $set: { status: "Cancelled", cancelledAt: new Date() } }
+      );
+
+    res.json({ message: "Loan application cancelled successfully" });
+  } catch (err) {
+    console.error("CANCEL LOAN ERROR:", err);
+    res.status(500).json({ message: "Failed to cancel loan application" });
+  }
 });
 
 app.get("/loan-applications/pending", async (req, res) => {
