@@ -32,7 +32,7 @@ app.use(async (req, res, next) => {
 /* ===================== MIDDLEWARE ===================== */
 app.use(
   cors({
-    origin: true,
+    origin: "https://loanlink-server-one.vercel.app",
     credentials: true,
   })
 );
