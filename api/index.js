@@ -240,6 +240,13 @@ app.post("/loan-applications", async (req, res) => {
     });
   res.status(201).json(result);
 });
+app.get("/loan-applications/pending", async (req, res) => {
+  const apps = await mongoose.connection
+    .collection("loanapplications")
+    .find({ status: "Pending" })
+    .toArray();
+  res.json(apps);
+});
 
 app.get("/loan-applications", async (req, res) => {
   const apps = await mongoose.connection
