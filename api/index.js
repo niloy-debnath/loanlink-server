@@ -2,8 +2,6 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import Stripe from "stripe";
-import jwt from "jsonwebtoken";
-import cookieParser from "cookie-parser";
 import mongoose from "mongoose";
 import admin from "../firebaseAdmin.js";
 import connectDB from "../db.js";
@@ -38,26 +36,11 @@ app.use(
 );
 
 app.use(express.json());
-app.use(cookieParser());
-
-/* ===================== JWT MIDDLEWARE ===================== */
-const verifyJWT = (req, res, next) => {
-  console.log("COOKIES:", req.cookies);
-
-  const token = req.cookies?.token;
-  if (!token) return res.status(401).json({ message: "Unauthorized" });
-
-  jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
-    if (err) return res.status(401).json({ message: "Unauthorized" });
-    req.user = decoded;
-    next();
-  });
-};
 
 /* ===================== STRIPE ===================== */
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
-/* ===================== AUTH ROUTES ===================== */
+/* ===================== FIREBASE TEST ===================== */
 app.get("/test-firebase", async (req, res) => {
   try {
     const users = await admin.auth().listUsers(1);
@@ -65,51 +48,6 @@ app.get("/test-firebase", async (req, res) => {
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
-});
-
-app.post("/jwt", async (req, res) => {
-  const { firebaseToken } = req.body;
-  console.log("jwt body:", req.body);
-
-  try {
-    const decodedUser = await admin.auth().verifyIdToken(firebaseToken);
-
-    const token = jwt.sign(
-      { email: decodedUser.email },
-      process.env.JWT_SECRET,
-      { expiresIn: "7d" }
-    );
-
-    // res.cookie("token", token, {
-    //   httpOnly: true,
-    //   secure: true,
-    //   sameSite: "none",
-    // });
-    res.cookie("token", token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "none",
-      path: "/",
-    });
-
-    res.json({ success: true });
-  } catch {
-    res.status(401).json({ message: "Invalid Firebase token" });
-  }
-});
-
-app.post("/logout", (req, res) => {
-  // res.clearCookie("token", {
-  //   secure: true,
-  //   sameSite: "none",
-  // });
-  res.clearCookie("token", {
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "none",
-    path: "/",
-  });
-
-  res.json({ message: "Logged out" });
 });
 
 /* =====================================================
@@ -268,7 +206,6 @@ app.post("/loans", async (req, res) => {
   };
 
   const result = await mongoose.connection.collection("loans").insertOne(loan);
-
   res.status(201).json(result);
 });
 
@@ -320,45 +257,6 @@ app.get("/loan-applications/user/:email", async (req, res) => {
   res.json(apps);
 });
 
-/* ---------- CANCEL LOAN APPLICATION ---------- */
-app.put("/loan-applications/:id/cancel", async (req, res) => {
-  try {
-    const loan = await mongoose.connection
-      .collection("loanapplications")
-      .findOne({ _id: new mongoose.Types.ObjectId(req.params.id) });
-
-    if (!loan) {
-      return res.status(404).json({ message: "Loan application not found" });
-    }
-
-    if (loan.status !== "Pending") {
-      return res
-        .status(400)
-        .json({ message: "Only pending applications can be cancelled" });
-    }
-
-    await mongoose.connection
-      .collection("loanapplications")
-      .updateOne(
-        { _id: loan._id },
-        { $set: { status: "Cancelled", cancelledAt: new Date() } }
-      );
-
-    res.json({ message: "Loan application cancelled successfully" });
-  } catch (err) {
-    console.error("CANCEL LOAN ERROR:", err);
-    res.status(500).json({ message: "Failed to cancel loan application" });
-  }
-});
-
-app.get("/loan-applications/pending", async (req, res) => {
-  const apps = await mongoose.connection
-    .collection("loanapplications")
-    .find({ status: "Pending" })
-    .toArray();
-  res.json(apps);
-});
-
 app.put("/loan-applications/:id/status", async (req, res) => {
   await mongoose.connection.collection("loanapplications").updateOne(
     { _id: new mongoose.Types.ObjectId(req.params.id) },
@@ -390,29 +288,20 @@ app.post("/loan-applications/:id/pay", async (req, res) => {
   res.json({ clientSecret: paymentIntent.client_secret });
 });
 
-app.post(
-  "/loan-applications/:id/confirm-payment",
-
-  async (req, res) => {
-    await mongoose.connection.collection("loanapplications").updateOne(
-      { _id: new mongoose.Types.ObjectId(req.params.id) },
-      {
-        $set: {
-          applicationFeeStatus: "Paid",
-          paidAt: new Date(),
-        },
-      }
-    );
-    res.json({ message: "Payment confirmed" });
-  }
-);
+app.post("/loan-applications/:id/confirm-payment", async (req, res) => {
+  await mongoose.connection.collection("loanapplications").updateOne(
+    { _id: new mongoose.Types.ObjectId(req.params.id) },
+    {
+      $set: {
+        applicationFeeStatus: "Paid",
+        paidAt: new Date(),
+      },
+    }
+  );
+  res.json({ message: "Payment confirmed" });
+});
 
 /* ===================== ROOT ===================== */
 app.get("/", (req, res) => res.send("Loan Link Backend Running..."));
 
 export default app;
-// export const config = {
-//   api: {
-//     bodyParser: false,
-//   },
-// };
