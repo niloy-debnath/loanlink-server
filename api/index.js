@@ -150,7 +150,7 @@ app.get("/users/:email", async (req, res) => {
   res.json(user);
 });
 
-app.put("/users/:id", verifyJWT, async (req, res) => {
+app.put("/users/:id", async (req, res) => {
   const result = await mongoose.connection
     .collection("users")
     .updateOne(
@@ -164,7 +164,7 @@ app.put("/users/:id", verifyJWT, async (req, res) => {
   res.json({ message: "Profile updated successfully" });
 });
 
-app.get("/users", verifyJWT, async (req, res) => {
+app.get("/users", async (req, res) => {
   const users = await mongoose.connection
     .collection("users")
     .find({})
@@ -172,7 +172,7 @@ app.get("/users", verifyJWT, async (req, res) => {
   res.json(users);
 });
 
-app.put("/users/:id/role", verifyJWT, async (req, res) => {
+app.put("/users/:id/role", async (req, res) => {
   const result = await mongoose.connection
     .collection("users")
     .updateOne(
@@ -186,7 +186,7 @@ app.put("/users/:id/role", verifyJWT, async (req, res) => {
   res.json({ message: "Role updated" });
 });
 
-app.put("/users/:id/image", verifyJWT, async (req, res) => {
+app.put("/users/:id/image", async (req, res) => {
   const { photoURL } = req.body;
   if (!photoURL) return res.status(400).json({ message: "photoURL required" });
 
@@ -203,7 +203,7 @@ app.put("/users/:id/image", verifyJWT, async (req, res) => {
   res.json({ message: "Profile image updated", photoURL });
 });
 
-app.put("/users/:id/suspend", verifyJWT, async (req, res) => {
+app.put("/users/:id/suspend", async (req, res) => {
   const result = await mongoose.connection.collection("users").updateOne(
     { _id: new mongoose.Types.ObjectId(req.params.id) },
     {
@@ -250,7 +250,7 @@ app.get("/loans/:id", async (req, res) => {
   res.json(loan);
 });
 
-app.get("/loans/manager/:email", verifyJWT, async (req, res) => {
+app.get("/loans/manager/:email", async (req, res) => {
   const loans = await mongoose.connection
     .collection("loans")
     .find({ createdBy: req.params.email })
@@ -258,7 +258,7 @@ app.get("/loans/manager/:email", verifyJWT, async (req, res) => {
   res.json(loans);
 });
 
-app.post("/loans", verifyJWT, async (req, res) => {
+app.post("/loans", async (req, res) => {
   const loan = {
     ...req.body,
     interestRate: Number(req.body.interestRate),
@@ -272,7 +272,7 @@ app.post("/loans", verifyJWT, async (req, res) => {
   res.status(201).json(result);
 });
 
-app.put("/loans/:id", verifyJWT, async (req, res) => {
+app.put("/loans/:id", async (req, res) => {
   await mongoose.connection
     .collection("loans")
     .updateOne(
@@ -282,7 +282,7 @@ app.put("/loans/:id", verifyJWT, async (req, res) => {
   res.json({ message: "Loan updated" });
 });
 
-app.delete("/loans/:id", verifyJWT, async (req, res) => {
+app.delete("/loans/:id", async (req, res) => {
   await mongoose.connection
     .collection("loans")
     .deleteOne({ _id: new mongoose.Types.ObjectId(req.params.id) });
@@ -321,7 +321,7 @@ app.get("/loan-applications/user/:email", async (req, res) => {
 });
 
 /* ---------- CANCEL LOAN APPLICATION ---------- */
-app.put("/loan-applications/:id/cancel", verifyJWT, async (req, res) => {
+app.put("/loan-applications/:id/cancel", async (req, res) => {
   try {
     const loan = await mongoose.connection
       .collection("loanapplications")
@@ -351,7 +351,7 @@ app.put("/loan-applications/:id/cancel", verifyJWT, async (req, res) => {
   }
 });
 
-app.get("/loan-applications/pending", verifyJWT, async (req, res) => {
+app.get("/loan-applications/pending", async (req, res) => {
   const apps = await mongoose.connection
     .collection("loanapplications")
     .find({ status: "Pending" })
@@ -359,7 +359,7 @@ app.get("/loan-applications/pending", verifyJWT, async (req, res) => {
   res.json(apps);
 });
 
-app.put("/loan-applications/:id/status", verifyJWT, async (req, res) => {
+app.put("/loan-applications/:id/status", async (req, res) => {
   await mongoose.connection.collection("loanapplications").updateOne(
     { _id: new mongoose.Types.ObjectId(req.params.id) },
     {
@@ -373,7 +373,7 @@ app.put("/loan-applications/:id/status", verifyJWT, async (req, res) => {
 });
 
 /* ---------- STRIPE PAYMENT ---------- */
-app.post("/loan-applications/:id/pay", verifyJWT, async (req, res) => {
+app.post("/loan-applications/:id/pay", async (req, res) => {
   const paymentIntent = await stripe.paymentIntents.create({
     amount: 1000,
     currency: "usd",
@@ -392,7 +392,7 @@ app.post("/loan-applications/:id/pay", verifyJWT, async (req, res) => {
 
 app.post(
   "/loan-applications/:id/confirm-payment",
-  verifyJWT,
+
   async (req, res) => {
     await mongoose.connection.collection("loanapplications").updateOne(
       { _id: new mongoose.Types.ObjectId(req.params.id) },
