@@ -30,7 +30,10 @@ app.use(async (req, res, next) => {
 /* ===================== MIDDLEWARE ===================== */
 app.use(
   cors({
-    origin: ["http://localhost:5173", "https://loanlink-client.vercel.app"],
+    origin: [
+      "http://localhost:5173",
+      "https://loanlink-client-azure.vercel.app/",
+    ],
     credentials: true,
   })
 );
