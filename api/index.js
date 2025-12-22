@@ -31,7 +31,7 @@ app.use(async (req, res, next) => {
 /* ===================== MIDDLEWARE ===================== */
 app.use(
   cors({
-    origin: ["http://localhost:5173", "https://your-live-site.netlify.app"],
+    origin: true,
     credentials: true,
   })
 );
