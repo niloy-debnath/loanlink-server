@@ -141,7 +141,7 @@ app.post("/users", async (req, res) => {
   }
 });
 
-app.get("/users/:email", verifyJWT, async (req, res) => {
+app.get("/users/:email", async (req, res) => {
   const user = await mongoose.connection
     .collection("users")
     .findOne({ email: req.params.email });
@@ -304,7 +304,7 @@ app.post("/loan-applications", async (req, res) => {
   res.status(201).json(result);
 });
 
-app.get("/loan-applications", verifyJWT, async (req, res) => {
+app.get("/loan-applications", async (req, res) => {
   const apps = await mongoose.connection
     .collection("loanapplications")
     .find({})
@@ -312,7 +312,7 @@ app.get("/loan-applications", verifyJWT, async (req, res) => {
   res.json(apps);
 });
 
-app.get("/loan-applications/user/:email", verifyJWT, async (req, res) => {
+app.get("/loan-applications/user/:email", async (req, res) => {
   const apps = await mongoose.connection
     .collection("loanapplications")
     .find({ userEmail: req.params.email })
