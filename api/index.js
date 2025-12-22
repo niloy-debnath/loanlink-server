@@ -1,19 +1,19 @@
 import express from "express";
-import mongoose from "mongoose";
 import cors from "cors";
 import dotenv from "dotenv";
 import Stripe from "stripe";
-import fs from "fs";
-import path from "path";
-import multer from "multer";
 import jwt from "jsonwebtoken";
 import cookieParser from "cookie-parser";
-import admin from "./firebaseAdmin.js";
+import mongoose from "mongoose";
+import admin from "../firebaseAdmin.js";
+import connectDB from "../db.js";
 
 dotenv.config();
 
 const app = express();
-const port = process.env.PORT || 5000;
+
+/* ===================== DB ===================== */
+await connectDB();
 
 /* ===================== MIDDLEWARE ===================== */
 app.use(
@@ -28,14 +28,11 @@ app.use(cookieParser());
 /* ===================== JWT MIDDLEWARE ===================== */
 const verifyJWT = (req, res, next) => {
   const token = req.cookies?.token;
-
-  if (!token) {
-    return res.status(401).json({ message: "Unauthorized" });
-  }
+  if (!token) return res.status(401).json({ message: "Unauthorized" });
 
   jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
     if (err) return res.status(401).json({ message: "Unauthorized" });
-    req.user = decoded; // will contain email
+    req.user = decoded;
     next();
   });
 };
@@ -43,15 +40,7 @@ const verifyJWT = (req, res, next) => {
 /* ===================== STRIPE ===================== */
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
-/* ===================== DB ===================== */
-mongoose
-  .connect(process.env.MONGO_URI)
-  .then(() => console.log("MongoDB connected"))
-  .catch((err) => console.error("MongoDB connection error:", err));
-
 /* ===================== AUTH ROUTES ===================== */
-
-// Test Firebase Admin
 app.get("/test-firebase", async (req, res) => {
   try {
     const users = await admin.auth().listUsers(1);
@@ -61,7 +50,6 @@ app.get("/test-firebase", async (req, res) => {
   }
 });
 
-// Verify Firebase token & create JWT
 app.post("/jwt", async (req, res) => {
   const { firebaseToken } = req.body;
 
@@ -76,21 +64,20 @@ app.post("/jwt", async (req, res) => {
 
     res.cookie("token", token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
+      secure: true,
+      sameSite: "none",
     });
 
     res.json({ success: true });
-  } catch (err) {
+  } catch {
     res.status(401).json({ message: "Invalid Firebase token" });
   }
 });
 
-// Logout route
 app.post("/logout", (req, res) => {
   res.clearCookie("token", {
-    secure: process.env.NODE_ENV === "production",
-    sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
+    secure: true,
+    sameSite: "none",
   });
   res.json({ message: "Logged out" });
 });
@@ -111,25 +98,15 @@ app.post("/users", async (req, res) => {
         photoURL: user.photoURL,
         status: user.status,
       };
-
-      if (user.role) {
-        updateDoc.role = user.role;
-      }
+      if (user.role) updateDoc.role = user.role;
 
       await users.updateOne({ email: user.email }, { $set: updateDoc });
-
       return res.json({ message: "User synced safely" });
     }
 
-    // New user
-    await users.insertOne({
-      ...user,
-      role: user.role || "borrower",
-    });
-
+    await users.insertOne({ ...user, role: user.role || "borrower" });
     res.json({ message: "User created" });
-  } catch (err) {
-    console.error(err);
+  } catch {
     res.status(500).json({ message: "Failed to save user" });
   }
 });
@@ -144,26 +121,17 @@ app.get("/users/:email", verifyJWT, async (req, res) => {
 });
 
 app.put("/users/:id", verifyJWT, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const updateFields = req.body;
+  const result = await mongoose.connection
+    .collection("users")
+    .updateOne(
+      { _id: new mongoose.Types.ObjectId(req.params.id) },
+      { $set: req.body }
+    );
 
-    const result = await mongoose.connection
-      .collection("users")
-      .updateOne(
-        { _id: new mongoose.Types.ObjectId(id) },
-        { $set: updateFields }
-      );
+  if (!result.matchedCount)
+    return res.status(404).json({ message: "User not found" });
 
-    if (!result.matchedCount) {
-      return res.status(404).json({ message: "User not found" });
-    }
-
-    res.json({ message: "Profile updated successfully" });
-  } catch (err) {
-    console.error("PROFILE UPDATE ERROR:", err);
-    res.status(500).json({ message: "Failed to update profile" });
-  }
+  res.json({ message: "Profile updated successfully" });
 });
 
 app.get("/users", verifyJWT, async (req, res) => {
@@ -188,34 +156,23 @@ app.put("/users/:id/role", verifyJWT, async (req, res) => {
   res.json({ message: "Role updated" });
 });
 
-/* ---------- UPDATE PROFILE IMAGE ---------- */
 app.put("/users/:id/image", verifyJWT, async (req, res) => {
-  try {
-    const { photoURL } = req.body;
+  const { photoURL } = req.body;
+  if (!photoURL) return res.status(400).json({ message: "photoURL required" });
 
-    if (!photoURL) {
-      return res.status(400).json({ message: "photoURL required" });
-    }
+  const result = await mongoose.connection
+    .collection("users")
+    .updateOne(
+      { _id: new mongoose.Types.ObjectId(req.params.id) },
+      { $set: { photoURL } }
+    );
 
-    const result = await mongoose.connection
-      .collection("users")
-      .updateOne(
-        { _id: new mongoose.Types.ObjectId(req.params.id) },
-        { $set: { photoURL } }
-      );
+  if (!result.matchedCount)
+    return res.status(404).json({ message: "User not found" });
 
-    if (!result.matchedCount) {
-      return res.status(404).json({ message: "User not found" });
-    }
-
-    res.json({ message: "Profile image updated", photoURL });
-  } catch (err) {
-    console.error("IMAGE UPDATE ERROR:", err);
-    res.status(500).json({ message: err.message });
-  }
+  res.json({ message: "Profile image updated", photoURL });
 });
 
-/* ---------- SUSPEND USER ---------- */
 app.put("/users/:id/suspend", verifyJWT, async (req, res) => {
   const result = await mongoose.connection.collection("users").updateOne(
     { _id: new mongoose.Types.ObjectId(req.params.id) },
@@ -423,6 +380,4 @@ app.post(
 /* ===================== ROOT ===================== */
 app.get("/", (req, res) => res.send("Loan Link Backend Running..."));
 
-app.listen(port, () =>
-  console.log(`Server running at http://localhost:${port}`)
-);
+export default app;
