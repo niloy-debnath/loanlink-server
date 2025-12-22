@@ -32,15 +32,18 @@ app.use(async (req, res, next) => {
 /* ===================== MIDDLEWARE ===================== */
 app.use(
   cors({
-    origin: "http://localhost:5173",
+    origin: ["http://localhost:5173", "https://loanlink-client.vercel.app"],
     credentials: true,
   })
 );
+
 app.use(express.json());
 app.use(cookieParser());
 
 /* ===================== JWT MIDDLEWARE ===================== */
 const verifyJWT = (req, res, next) => {
+  console.log("COOKIES:", req.cookies);
+
   const token = req.cookies?.token;
   if (!token) return res.status(401).json({ message: "Unauthorized" });
 
@@ -77,10 +80,16 @@ app.post("/jwt", async (req, res) => {
       { expiresIn: "7d" }
     );
 
+    // res.cookie("token", token, {
+    //   httpOnly: true,
+    //   secure: true,
+    //   sameSite: "none",
+    // });
     res.cookie("token", token, {
       httpOnly: true,
-      secure: true,
+      secure: process.env.NODE_ENV === "production",
       sameSite: "none",
+      path: "/",
     });
 
     res.json({ success: true });
@@ -90,10 +99,16 @@ app.post("/jwt", async (req, res) => {
 });
 
 app.post("/logout", (req, res) => {
+  // res.clearCookie("token", {
+  //   secure: true,
+  //   sameSite: "none",
+  // });
   res.clearCookie("token", {
-    secure: true,
+    secure: process.env.NODE_ENV === "production",
     sameSite: "none",
+    path: "/",
   });
+
   res.json({ message: "Logged out" });
 });
 
@@ -396,8 +411,8 @@ app.post(
 app.get("/", (req, res) => res.send("Loan Link Backend Running..."));
 
 export default app;
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-};
+// export const config = {
+//   api: {
+//     bodyParser: false,
+//   },
+// };
