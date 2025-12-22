@@ -141,7 +141,7 @@ app.post("/users", async (req, res) => {
   }
 });
 
-app.get("/users/:email", verifyJWT, async (req, res) => {
+app.get("/users/:email", async (req, res) => {
   const user = await mongoose.connection
     .collection("users")
     .findOne({ email: req.params.email });
