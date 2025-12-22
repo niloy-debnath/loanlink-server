@@ -6,6 +6,9 @@ import Stripe from "stripe";
 import fs from "fs";
 import path from "path";
 import multer from "multer";
+import jwt from "jsonwebtoken";
+import cookieParser from "cookie-parser";
+import admin from "./firebaseAdmin.js";
 
 dotenv.config();
 
@@ -20,6 +23,22 @@ app.use(
   })
 );
 app.use(express.json());
+app.use(cookieParser());
+
+/* ===================== JWT MIDDLEWARE ===================== */
+const verifyJWT = (req, res, next) => {
+  const token = req.cookies?.token;
+
+  if (!token) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+
+  jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
+    if (err) return res.status(401).json({ message: "Unauthorized" });
+    req.user = decoded; // will contain email
+    next();
+  });
+};
 
 /* ===================== STRIPE ===================== */
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
@@ -29,6 +48,52 @@ mongoose
   .connect(process.env.MONGO_URI)
   .then(() => console.log("MongoDB connected"))
   .catch((err) => console.error("MongoDB connection error:", err));
+
+/* ===================== AUTH ROUTES ===================== */
+
+// Test Firebase Admin
+app.get("/test-firebase", async (req, res) => {
+  try {
+    const users = await admin.auth().listUsers(1);
+    res.json(users);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// Verify Firebase token & create JWT
+app.post("/jwt", async (req, res) => {
+  const { firebaseToken } = req.body;
+
+  try {
+    const decodedUser = await admin.auth().verifyIdToken(firebaseToken);
+
+    const token = jwt.sign(
+      { email: decodedUser.email },
+      process.env.JWT_SECRET,
+      { expiresIn: "7d" }
+    );
+
+    res.cookie("token", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
+    });
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(401).json({ message: "Invalid Firebase token" });
+  }
+});
+
+// Logout route
+app.post("/logout", (req, res) => {
+  res.clearCookie("token", {
+    secure: process.env.NODE_ENV === "production",
+    sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
+  });
+  res.json({ message: "Logged out" });
+});
 
 /* =====================================================
    USERS
@@ -69,7 +134,7 @@ app.post("/users", async (req, res) => {
   }
 });
 
-app.get("/users/:email", async (req, res) => {
+app.get("/users/:email", verifyJWT, async (req, res) => {
   const user = await mongoose.connection
     .collection("users")
     .findOne({ email: req.params.email });
@@ -78,7 +143,7 @@ app.get("/users/:email", async (req, res) => {
   res.json(user);
 });
 
-app.put("/users/:id", async (req, res) => {
+app.put("/users/:id", verifyJWT, async (req, res) => {
   try {
     const { id } = req.params;
     const updateFields = req.body;
@@ -101,7 +166,7 @@ app.put("/users/:id", async (req, res) => {
   }
 });
 
-app.get("/users", async (req, res) => {
+app.get("/users", verifyJWT, async (req, res) => {
   const users = await mongoose.connection
     .collection("users")
     .find({})
@@ -109,7 +174,7 @@ app.get("/users", async (req, res) => {
   res.json(users);
 });
 
-app.put("/users/:id/role", async (req, res) => {
+app.put("/users/:id/role", verifyJWT, async (req, res) => {
   const result = await mongoose.connection
     .collection("users")
     .updateOne(
@@ -124,7 +189,7 @@ app.put("/users/:id/role", async (req, res) => {
 });
 
 /* ---------- UPDATE PROFILE IMAGE ---------- */
-app.put("/users/:id/image", async (req, res) => {
+app.put("/users/:id/image", verifyJWT, async (req, res) => {
   try {
     const { photoURL } = req.body;
 
@@ -151,7 +216,7 @@ app.put("/users/:id/image", async (req, res) => {
 });
 
 /* ---------- SUSPEND USER ---------- */
-app.put("/users/:id/suspend", async (req, res) => {
+app.put("/users/:id/suspend", verifyJWT, async (req, res) => {
   const result = await mongoose.connection.collection("users").updateOne(
     { _id: new mongoose.Types.ObjectId(req.params.id) },
     {
@@ -198,7 +263,7 @@ app.get("/loans/:id", async (req, res) => {
   res.json(loan);
 });
 
-app.get("/loans/manager/:email", async (req, res) => {
+app.get("/loans/manager/:email", verifyJWT, async (req, res) => {
   const loans = await mongoose.connection
     .collection("loans")
     .find({ createdBy: req.params.email })
@@ -206,7 +271,7 @@ app.get("/loans/manager/:email", async (req, res) => {
   res.json(loans);
 });
 
-app.post("/loans", async (req, res) => {
+app.post("/loans", verifyJWT, async (req, res) => {
   const loan = {
     ...req.body,
     interestRate: Number(req.body.interestRate),
@@ -220,7 +285,7 @@ app.post("/loans", async (req, res) => {
   res.status(201).json(result);
 });
 
-app.put("/loans/:id", async (req, res) => {
+app.put("/loans/:id", verifyJWT, async (req, res) => {
   await mongoose.connection
     .collection("loans")
     .updateOne(
@@ -230,7 +295,7 @@ app.put("/loans/:id", async (req, res) => {
   res.json({ message: "Loan updated" });
 });
 
-app.delete("/loans/:id", async (req, res) => {
+app.delete("/loans/:id", verifyJWT, async (req, res) => {
   await mongoose.connection
     .collection("loans")
     .deleteOne({ _id: new mongoose.Types.ObjectId(req.params.id) });
@@ -252,7 +317,7 @@ app.post("/loan-applications", async (req, res) => {
   res.status(201).json(result);
 });
 
-app.get("/loan-applications", async (req, res) => {
+app.get("/loan-applications", verifyJWT, async (req, res) => {
   const apps = await mongoose.connection
     .collection("loanapplications")
     .find({})
@@ -260,7 +325,7 @@ app.get("/loan-applications", async (req, res) => {
   res.json(apps);
 });
 
-app.get("/loan-applications/user/:email", async (req, res) => {
+app.get("/loan-applications/user/:email", verifyJWT, async (req, res) => {
   const apps = await mongoose.connection
     .collection("loanapplications")
     .find({ userEmail: req.params.email })
@@ -269,7 +334,7 @@ app.get("/loan-applications/user/:email", async (req, res) => {
 });
 
 /* ---------- CANCEL LOAN APPLICATION ---------- */
-app.put("/loan-applications/:id/cancel", async (req, res) => {
+app.put("/loan-applications/:id/cancel", verifyJWT, async (req, res) => {
   try {
     const loan = await mongoose.connection
       .collection("loanapplications")
@@ -299,7 +364,7 @@ app.put("/loan-applications/:id/cancel", async (req, res) => {
   }
 });
 
-app.get("/loan-applications/pending", async (req, res) => {
+app.get("/loan-applications/pending", verifyJWT, async (req, res) => {
   const apps = await mongoose.connection
     .collection("loanapplications")
     .find({ status: "Pending" })
@@ -307,7 +372,7 @@ app.get("/loan-applications/pending", async (req, res) => {
   res.json(apps);
 });
 
-app.put("/loan-applications/:id/status", async (req, res) => {
+app.put("/loan-applications/:id/status", verifyJWT, async (req, res) => {
   await mongoose.connection.collection("loanapplications").updateOne(
     { _id: new mongoose.Types.ObjectId(req.params.id) },
     {
@@ -321,7 +386,7 @@ app.put("/loan-applications/:id/status", async (req, res) => {
 });
 
 /* ---------- STRIPE PAYMENT ---------- */
-app.post("/loan-applications/:id/pay", async (req, res) => {
+app.post("/loan-applications/:id/pay", verifyJWT, async (req, res) => {
   const paymentIntent = await stripe.paymentIntents.create({
     amount: 1000,
     currency: "usd",
@@ -338,18 +403,22 @@ app.post("/loan-applications/:id/pay", async (req, res) => {
   res.json({ clientSecret: paymentIntent.client_secret });
 });
 
-app.post("/loan-applications/:id/confirm-payment", async (req, res) => {
-  await mongoose.connection.collection("loanapplications").updateOne(
-    { _id: new mongoose.Types.ObjectId(req.params.id) },
-    {
-      $set: {
-        applicationFeeStatus: "Paid",
-        paidAt: new Date(),
-      },
-    }
-  );
-  res.json({ message: "Payment confirmed" });
-});
+app.post(
+  "/loan-applications/:id/confirm-payment",
+  verifyJWT,
+  async (req, res) => {
+    await mongoose.connection.collection("loanapplications").updateOne(
+      { _id: new mongoose.Types.ObjectId(req.params.id) },
+      {
+        $set: {
+          applicationFeeStatus: "Paid",
+          paidAt: new Date(),
+        },
+      }
+    );
+    res.json({ message: "Payment confirmed" });
+  }
+);
 
 /* ===================== ROOT ===================== */
 app.get("/", (req, res) => res.send("Loan Link Backend Running..."));
