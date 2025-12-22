@@ -66,6 +66,7 @@ app.get("/test-firebase", async (req, res) => {
 
 app.post("/jwt", async (req, res) => {
   const { firebaseToken } = req.body;
+  console.log("jwt body:", req.body);
 
   try {
     const decodedUser = await admin.auth().verifyIdToken(firebaseToken);
