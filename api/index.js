@@ -14,17 +14,18 @@ const app = express();
 app.set("trust proxy", 1);
 
 /* ===================== DB ===================== */
-let isConnected = false;
-
-async function ensureDB() {
-  if (!isConnected) {
-    await connectDB();
-    isConnected = true;
-  }
-}
+let dbReady = false;
 
 app.use(async (req, res, next) => {
-  await ensureDB();
+  if (!dbReady) {
+    try {
+      await connectDB();
+      dbReady = true;
+    } catch (err) {
+      console.error("DB ERROR:", err);
+      return res.status(500).send("Database connection failed");
+    }
+  }
   next();
 });
 
@@ -394,3 +395,8 @@ app.post(
 app.get("/", (req, res) => res.send("Loan Link Backend Running..."));
 
 export default app;
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+};
