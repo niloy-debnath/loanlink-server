@@ -32,7 +32,7 @@ app.use(
   cors({
     origin: [
       "http://localhost:5173",
-      "https://loanlink-client-azure.vercel.app/",
+      "https://loanlink-client-azure.vercel.app",
     ],
     credentials: true,
   })
