@@ -11,9 +11,22 @@ import connectDB from "../db.js";
 dotenv.config();
 
 const app = express();
+app.set("trust proxy", 1);
 
 /* ===================== DB ===================== */
-await connectDB();
+let isConnected = false;
+
+async function ensureDB() {
+  if (!isConnected) {
+    await connectDB();
+    isConnected = true;
+  }
+}
+
+app.use(async (req, res, next) => {
+  await ensureDB();
+  next();
+});
 
 /* ===================== MIDDLEWARE ===================== */
 app.use(

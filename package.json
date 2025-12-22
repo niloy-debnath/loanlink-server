@@ -2,7 +2,7 @@
   "name": "loan-link-server",
   "version": "1.0.0",
   "description": "Backend server for Loan Link",
-  "main": "index.js",
+  "main": "./api/index.js",
   "type": "module",
   "scripts": {
     "start": "node index.js",
@@ -20,7 +20,7 @@
     "stripe": "^16.5.0"
   },
   "engines": {
-    "node": "24.x"
+    "node": "20.x"
   },
   "devDependencies": {
     "nodemon": "^3.1.7"
